@@ -7,6 +7,10 @@ var resolvedBeforeWrap = unwrappedPromise.resolve(123)
 
 require('../index.js');
 
+// Convert semver string to number set
+// TODO: This is *very* naive structure to check versions with,
+// but it works well enough for now...
+var nodeVersion = process.version.slice(1).split('.').map(Number)
 
 test('then', function(t) {
   var listener = addListner();
@@ -1543,11 +1547,12 @@ test('resume context after unwrapped promise', function(t) {
   var listener = addListner();
 
   listener.currentName = 'resolve';
-  var wrapped = Promise.resolve(456)
+  var wrapped = Promise.resolve(456);
 
   listener.currentName = 'unwrapped resolve';
   resolvedBeforeWrap.then(function(val) {
     t.equal(val, 123, 'should match resolved value');
+    listener.currentName = 'maybe internal resolve';
     return wrapped
   }).then(function (val) {
     t.equal(val, 456, 'should match resolved value');
@@ -1561,19 +1566,31 @@ test('resume context after unwrapped promise', function(t) {
 
   process.removeAsyncListener(listener.listener);
 
+  var resolveChildren = []
+  if (nodeVersion[0] >= 6) {
+    resolveChildren.push({
+      name : 'maybe internal resolve',
+      children : [],
+      before : 0,
+      after : 0,
+      error : 0
+    })
+  }
+  resolveChildren.push({
+    name : 'return after continuing from wrapped promise',
+    children : [],
+    before : 1,
+    after : 0,
+    error : 0
+  })
+
   var expected = {
     name: 'root',
     children: [{
       name : 'resolve',
-      children : [{
-        name : 'return after continuing from wrapped promise',
-        children : [],
-        before : 1,
-        after : 0,
-        error : 0
-      }],
-      before : 1,
-      after : 1,
+      children : resolveChildren,
+      before : resolveChildren.length,
+      after : resolveChildren.length,
       error : 0
     }],
     before: 0,
